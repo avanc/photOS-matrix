@@ -1,4 +1,4 @@
-OS_NAME="photOS"
-OS_SHORT_NAME="photOS"
-OS_PREFIX="photos"
-OS_VERSION="0.3.7"
+OS_NAME="photOS-matrix"
+OS_SHORT_NAME="photOS-matrix"
+OS_PREFIX="photos-matrix"
+OS_VERSION="0.3.7.1-rc1"
