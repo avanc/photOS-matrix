@@ -11,6 +11,8 @@ test -n "${OS_VERSION}" || source /etc/init.d/base
 
 start() {
   msg_begin "Starting matrix client"
+  /bin/mkdir -p /data/photoframe/log
+  /bin/mkdir -p /data/photoframe/images_local
   ${PROG} -m matrix_photos -c ${MATRIX_CONFIG} &
   
   test $? == 0 && msg_done || msg_fail
@@ -18,7 +20,7 @@ start() {
 
 stop() {
   msg_begin "Stopping matrix client"
-  killall -q $(basename ${PROG})
+  ps -A | grep -e "\s/usr/bin/python -m matrix_photos"  | awk 'FNR == 1 {print $1}' |  xargs kill -9 $1
   test $? == 0 && msg_done || msg_fail
 }
 

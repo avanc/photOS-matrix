@@ -9,6 +9,8 @@ This is an official fork of [photOS](https://github.com/avanc/photOS) to support
 
 # Installation, Configuration and Update
 The installation, configuration and update of photOS-matrix is similar to photOS and documented in the [wiki](https://github.com/avanc/photOS/wiki/Installation).
+The matrix support is only available for the raspberrypi and raspberrypi3 images at the moment.
+But don't hesitate to extend the other packages to your liking.
 
 # Additional information
 For additional information have a look at the [FAQ](https://github.com/avanc/photOS/wiki/FAQ) and the growing wiki pages.

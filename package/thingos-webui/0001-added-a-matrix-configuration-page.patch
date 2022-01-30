@@ -1,0 +1,344 @@
+From 8d9f5acefae939561617d0d89dfd48e8e482a596 Mon Sep 17 00:00:00 2001
+From: dirk <info@universalappfactory.de>
+Date: Sat, 29 Jan 2022 12:41:32 +0100
+Subject: [PATCH] added a matrix configuration page
+
+---
+ setup.py                                  |   2 +-
+ webui/plugins/index/index.html            |   2 +-
+ webui/plugins/matrix/__init__.py          |   1 +
+ webui/plugins/matrix/matrix.html          |  29 +++++
+ webui/plugins/matrix/matrix.py            |  65 +++++++++++
+ webui/plugins/matrix/matrix_response.html |   7 ++
+ webui/plugins/matrix/test_matrix.py       | 134 ++++++++++++++++++++++
+ webui/server.py                           |   7 +-
+ 8 files changed, 242 insertions(+), 5 deletions(-)
+ create mode 100644 webui/plugins/matrix/__init__.py
+ create mode 100644 webui/plugins/matrix/matrix.html
+ create mode 100644 webui/plugins/matrix/matrix.py
+ create mode 100644 webui/plugins/matrix/matrix_response.html
+ create mode 100644 webui/plugins/matrix/test_matrix.py
+
+diff --git a/setup.py b/setup.py
+index f713d56..1b47da4 100644
+--- a/setup.py
++++ b/setup.py
+@@ -22,7 +22,7 @@ setup(name='thingos-webui',
+       platforms=["Linux"],
+       long_description="",
+ 
+-      install_requires=['tornado>=3.1'],
++      install_requires=['tornado>=3.1','pyyaml==6.0'],
+ 
+       scripts=['bin/thingos_webui'],
+ 
+diff --git a/webui/plugins/index/index.html b/webui/plugins/index/index.html
+index efd8edd..db98288 100644
+--- a/webui/plugins/index/index.html
++++ b/webui/plugins/index/index.html
+@@ -5,7 +5,7 @@
+   <a class="w3-button w3-round-large w3-grey w3-margin-bottom" style="width:100%" href="/display">Display</a>
+   <a class="w3-button w3-round-large w3-grey w3-margin-bottom" style="width:100%" href="/power">Power</a>
+   <a class="w3-button w3-round-large w3-grey w3-margin-bottom" style="width:100%" href="/update">Update</a>
+-  <a class="w3-button w3-round-large w3-grey w3-margin-bottom" style="width:100%" href="/webdav">Webdav</a>
++  <a class="w3-button w3-round-large w3-grey w3-margin-bottom" style="width:100%" href="/matrix">Matrix</a>
+   <a class="w3-button w3-round-large w3-grey w3-margin-bottom" style="width:100%" href="/timezone">Timezone</a>
+ {% end %}
+ 
+diff --git a/webui/plugins/matrix/__init__.py b/webui/plugins/matrix/__init__.py
+new file mode 100644
+index 0000000..cef452c
+--- /dev/null
++++ b/webui/plugins/matrix/__init__.py
+@@ -0,0 +1 @@
++from . import matrix as handler
+diff --git a/webui/plugins/matrix/matrix.html b/webui/plugins/matrix/matrix.html
+new file mode 100644
+index 0000000..0dec741
+--- /dev/null
++++ b/webui/plugins/matrix/matrix.html
+@@ -0,0 +1,29 @@
++{% extends "../base.html" %}
++
++
++{% block body %}
++  <form class="w3-container"  action="/matrix" method="POST">
++
++    <label class="w3-text-white"><b>Homeserver URL</b></label>
++    <input class="w3-input w3-border w3-margin-bottom" type="text" placeholder="https://..." value="{{ matrix["url"] }}" name="url" required>
++    
++    <label class="w3-text-white"><b>Username</b></label>
++    <input class="w3-input w3-border w3-margin-bottom" type="text" value="{{ matrix["username"] }}" name="username" required>
++
++    <label class="w3-text-white"><b>Password</b></label>
++    <input class="w3-input w3-border w3-margin-bottom" type="password" name="password" required>
++
++    <label class="w3-text-white"><b>Device Id</b></label>
++    <input class="w3-input w3-border w3-margin-bottom" type="text" name="device_id" value="{{ matrix["device_id"] }}" required>
++
++    <label class="w3-text-white"><b>Trusted matrix users (comma separated)</b></label>
++    <input class="w3-input w3-border w3-margin-bottom" type="text" name="trusted_users" value="{{ matrix["trusted_users"] }}" required>
++
++    <label class="w3-text-white"><b>Admin user (optional)</b></label>
++    <input class="w3-input w3-border w3-margin-bottom" type="text" name="admin_user" value="{{ matrix["admin_user"] }}" >
++    
++    <button class="w3-button w3-round-large w3-grey" style="width:100%">Save</button>
++  
++  </form>
++
++{% end %}
+diff --git a/webui/plugins/matrix/matrix.py b/webui/plugins/matrix/matrix.py
+new file mode 100644
+index 0000000..cf81839
+--- /dev/null
++++ b/webui/plugins/matrix/matrix.py
+@@ -0,0 +1,65 @@
++import tornado.web
++import subprocess
++import yaml
++
++default_filename="/etc/photoframe/matrix_config_example.yml"
++filename="/data/photoframe/conf/matrix_config.yml"
++
++class MatrixHandler(tornado.web.RequestHandler):
++    def get(self):
++        self.render("matrix.html", title="Matrix", matrix=readData())
++
++    def post(self):
++        data={}
++        data["url"]=self.get_body_argument("url")
++        data["device_id"]=self.get_body_argument("device_id")
++        data["username"]=self.get_body_argument("username")
++        data["password"]=self.get_body_argument("password")
++        data["trusted_users"]=self.get_body_argument("trusted_users")
++        data["admin_user"]=self.get_body_argument("admin_user")
++        
++        writeData(data)
++        
++        self.render("matrix_response.html", title="Matrix")
++
++def readData():
++  data={}
++  data["url"]=""
++  data["device_id"]="PhotOS-Photoframe-001"
++  data["username"]=""
++  data["trusted_users"]=""
++  data["admin_user"]=""
++
++  try:
++    with open(filename, 'r', encoding='utf-8') as stream:
++      config = yaml.load(stream, Loader=yaml.SafeLoader)
++      
++      data["url"]=config["matrix"]["base_url"]
++      data["device_id"]=config["matrix"]["device_id"]
++      data["username"]=config["matrix"]["user_id"]
++      data["trusted_users"]=",".join(config["matrix"]["trusted_users"])
++      data["admin_user"]=config["matrix"]["admin_user"]
++  except:
++    pass
++
++  return data
++
++def writeData(data):
++  loaded_config = {}
++  try:
++    with open(filename, 'r', encoding='utf-8') as stream:
++      loaded_config = yaml.load(stream, Loader=yaml.SafeLoader)
++  except:
++    with open(default_filename, 'r', encoding='utf-8') as stream:
++      loaded_config = yaml.load(stream, Loader=yaml.SafeLoader)
++
++  with open(filename, 'w', encoding='utf-8') as stream:
++    loaded_config["matrix"]["base_url"] = data["url"]
++    loaded_config["matrix"]["device_id"] = data["device_id"]
++    loaded_config["matrix"]["user_id"] = data["username"]
++    loaded_config["matrix"]["user_password"] = data["password"]
++    loaded_config["matrix"]["trusted_users"] = str(data["trusted_users"]).split(',')
++    loaded_config["matrix"]["admin_user"] = data["admin_user"]
++
++    yaml.dump(loaded_config, stream)
++    subprocess.Popen(["/etc/init.d/S82matrixclient","restart"])
+diff --git a/webui/plugins/matrix/matrix_response.html b/webui/plugins/matrix/matrix_response.html
+new file mode 100644
+index 0000000..511e705
+--- /dev/null
++++ b/webui/plugins/matrix/matrix_response.html
+@@ -0,0 +1,7 @@
++{% extends "../base.html" %}
++
++
++{% block body %}
++  Matrix configuration stored.<br>
++  Client will be restarted.
++{% end %}
+diff --git a/webui/plugins/matrix/test_matrix.py b/webui/plugins/matrix/test_matrix.py
+new file mode 100644
+index 0000000..5000a23
+--- /dev/null
++++ b/webui/plugins/matrix/test_matrix.py
+@@ -0,0 +1,134 @@
++from subprocess import call
++import unittest
++from unittest.mock import patch, mock_open, call
++
++import matrix
++
++MATRIX_CFG = '''
++matrix:
++  user_id: "@test:homeserver.test"
++  user_password: "testpassword"
++  device_id: "TestDevice"
++  base_url: "https://homeserver.test"
++  admin_user: ""
++
++  trusted_users:
++    - "@first:homeserver.test"
++    - "@second:homeserver.test"
++'''
++
++WRONG_CONFIG = '''
++matrix:
++user_id: "@test:homeserver.test"
++user_password: "testpassword"
++device_id: "TestDevice"
++base_url: "https://homeserver.test"
++
++trusted_users:
++- "@first:homeserver.test"
++- "@second:homeserver.test"
++'''
++
++class TestReadData(unittest.TestCase):
++
++    @patch("builtins.open", mock_open(read_data=MATRIX_CFG))
++    def test_valid(self):
++      matrix.readData()
++      self.assertEqual(matrix.readData(), {
++        "url":"https://homeserver.test", 
++        "device_id":"TestDevice", 
++        "username":"@test:homeserver.test",
++        "trusted_users":"@first:homeserver.test,@second:homeserver.test",
++        "admin_user": "",
++      })
++
++    @patch("builtins.open", mock_open(read_data=WRONG_CONFIG))
++    def test_wrong_config(self):
++      matrix.readData()
++      self.assertEqual(matrix.readData(), {
++        "url":"", 
++        "device_id":"", 
++        "username":"",
++        "trusted_users":"",
++        "admin_user": "",
++      })
++      
++    def test_missing_file(self):
++      with patch("builtins.open", mock_open()) as mock_file:
++        mock_file.side_effect = IOError()
++        matrix.readData()
++        self.assertEqual(matrix.readData(), {
++        "url":"", 
++        "device_id":"", 
++        "username":"",
++        "trusted_users":"",
++        "admin_user": "",
++      })
++    
++
++class TestWriteData(unittest.TestCase):
++
++    def test_valid(self):
++      with patch('builtins.open', mock_open(read_data=MATRIX_CFG)) as m:
++        data = {
++          "url": "https://new_url",
++          "device_id": "NewDeviceId",
++          "username": "@new:homeserver.test",
++          "password": "mysecretpassword",
++          "trusted_users": "@aaa:homeserver.test,@bbb:homeserver.test"
++        }
++        matrix.writeData(data)
++        handle = m()
++
++        calls = [ 
++          call('matrix'),
++          call(':'),
++          call('\n'),
++          call('  '),
++          call('base_url'),
++          call(':'),
++          call(' '),
++          call('https://new_url'),
++          call('\n'),
++          call('  '),
++          call('device_id'),
++          call(':'),
++          call(' '),
++          call('NewDeviceId'),
++          call('\n'),
++          call('  '),
++          call('trusted_users'),
++          call(':'),
++          call('\n'),
++          call('  '),
++          call('-'),
++          call(" '"),
++          call('@aaa:homeserver.test'),
++          call("'"),
++          call('\n'),
++          call('  '),
++          call('-'),
++          call(" '"),
++          call('@bbb:homeserver.test'),
++          call("'"),
++          call('\n'),
++          call('  '),
++          call('user_id'),
++          call(':'),
++          call(" '"),
++          call('@new:homeserver.test'),
++          call("'"),
++          call('\n'),
++          call('  '),
++          call('user_password'),
++          call(':'),
++          call(' '),
++          call('mysecretpassword'),
++          call('\n')
++                ]
++        handle.write.assert_has_calls(calls, any_order=True)
++
++if __name__ == '__main__':
++    unittest.main()
++
++
+diff --git a/webui/server.py b/webui/server.py
+index 985e429..ef2bb31 100644
+--- a/webui/server.py
++++ b/webui/server.py
+@@ -5,8 +5,8 @@ from .plugins import index
+ from .plugins import power
+ from .plugins import display
+ from .plugins import update
+-from .plugins import webdav
+ from .plugins import timezone
++from .plugins import matrix
+ 
+ import os
+ 
+@@ -21,10 +21,11 @@ def main():
+          (r"/", index.handler.IndexHandler),
+          (r"/power", power.handler.PowerHandler),
+          (r"/display", display.handler.DisplayHandler),
+-         (r"/update", update.handler.UpdateHandler),
+-         (r"/webdav", webdav.handler.WebdavHandler),
++         (r"/update", update.handler.UpdateHandler),         
+          (r"/timezone", timezone.handler.TimezoneHandler),
++	       (r"/matrix", matrix.handler.MatrixHandler),         
+          (r'/favicon.ico', tornado.web.StaticFileHandler, {'path': settings['static_path']})
++         
+   ], **settings)
+ 
+   app.listen(port)
+-- 
+2.25.1
+

@@ -6,6 +6,9 @@ FOLDER_IMAGES=/data/photoframe/images_local
 #File that lists all available photos. Will be overwritten when new files are downloaded
 PHOTO_FILE_LIST_FILE=${CONF_DIR}/conf/filelist.txt
 PHOTO_FILE_LIST=${PHOTO_FILE_LIST_FILE}
+
+# The matrix client shows only the last n number of pictures which are listed in PHOTO_FILE_LIST_FILE
+# In the COMPLETE_PHOTO_FILE_LIST are all available pictures. You can switch to this list e.g. using gpio
 COMPLETE_PHOTO_FILE_LIST=${CONF_DIR}/conf/complete_filelist.txt
 
 NO_IMAGES="/usr/share/photoframe/noimages.png"
@@ -20,13 +23,13 @@ SHOW_VIDEOS=false
 SMARTFIT=30
 CEC_DEVICE_ID=-1
 
-RESUME_DEFAULT_FILELIST_DELAY=60 # delay to resume play only PHOTO_FILE_LIST
+RESUME_DEFAULT_FILELIST_DELAY=60 # delay to resume play only PHOTO_FILE_LIST when playing COMPLETE_PHOTO_FILE_LIST
 
-GPIO_PIN_NEXT=5 # show next file
+GPIO_PIN_NEXT=-1 # show next file
 GPIO_PIN_PREVIOUS=-1 # show previous file
 GPIO_PIN_PLAY=-1 # start/pause rotating images automatically
-GPIO_PIN_ALL=6 # switch to COMPLETE_PHOTO_FILE_LIST to show all pictures ()
-GPIO_PIN_SHUTDOWN=13
+GPIO_PIN_ALL=-1 # switch to COMPLETE_PHOTO_FILE_LIST to show all pictures ()
+GPIO_PIN_SHUTDOWN=-1
 GPIO_ACTION_VALUE=0 # value to identify action, for an pullup the value should be 0, for pulldown 1
 SWITCH_TO_ALL_DATETIME=0
 
@@ -137,6 +140,12 @@ PRESSED["$GPIO_PIN_SHUTDOWN"]=false
 
 function is_gpio_pressed() {
   if [ ! -d /sys/class/gpio/gpio${1} ]
+  then
+    false
+    return
+  fi
+  
+  if [ "${1}" -eq "-1" ]
   then
     false
     return
